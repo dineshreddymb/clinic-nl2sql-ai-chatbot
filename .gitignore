@@ -1,5 +1,8 @@
 .env
+.env.local
 docs/
 .venv/
 __pycache__/
 *.pyc
+clinic.db
+**/query_results_*.csv

@@ -22,17 +22,9 @@ The app accepts a plain-English analytics question, lets a Vanna agent generate 
 |   |-- schemas.py
 |   |-- seed_examples.py
 |   `-- sql_safety.py
-|-- docs/
-|   |-- FILE_GUIDE.md
-|   |-- INTERVIEW_PREP.md
-|   |-- NEXT_STAGE_IMPROVEMENTS.md
-|   |-- PROJECT_OVERVIEW.md
-|   |-- REQUEST_FLOW.md
-|   `-- STEP_BY_STEP_IMPLEMENTATION.md
 |-- .env.example
 |-- README.md
 |-- RESULTS.md
-|-- clinic.db
 |-- main.py
 |-- memory_seed.json
 |-- requirements.txt
@@ -165,3 +157,4 @@ That script sends the 20 assignment questions through `/chat` using FastAPI's te
 - If the Gemini key is missing, the server still starts so `/health` can explain the configuration problem.
 - The seeded benchmark SQL intentionally covers the same clinic reporting patterns described in the assignment so the agent has a strong starting memory.
 - During live testing, Gemini free-tier quota exhaustion can return `429 RESOURCE_EXHAUSTED`. The runtime now converts that into a clearer user-facing explanation, and this is a good interview talking point about handling third-party API limits.
+- Local-only artifacts such as `.env`, `docs/`, `clinic.db`, and generated query-result CSV files are intentionally excluded from the public repository.
