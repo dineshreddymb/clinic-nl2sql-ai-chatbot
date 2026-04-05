@@ -1,0 +1,259 @@
+from typing import Any
+
+
+SCHEMA_TEXT_MEMORIES = [
+    (
+        "patients table tracks demographics with columns id, first_name, last_name, email, "
+        "phone, date_of_birth, gender, city, and registered_date."
+    ),
+    (
+        "doctors table contains id, name, specialization, department, and phone. "
+        "Appointments join to doctors through appointments.doctor_id = doctors.id."
+    ),
+    (
+        "appointments table links patients and doctors using patient_id and doctor_id. "
+        "Statuses are Scheduled, Completed, Cancelled, and No-Show."
+    ),
+    (
+        "treatments table links to appointments using appointment_id. Use treatments.cost for "
+        "procedure-level revenue and treatments.duration_minutes for duration analysis."
+    ),
+    (
+        "invoices table links to patients, not directly to doctors. Use invoices.total_amount, "
+        "paid_amount, status, and invoice_date for billing and revenue trend questions."
+    ),
+    (
+        "For SQLite month trends, use strftime('%Y-%m', date_column). For day-of-week analysis, "
+        "use strftime('%w', appointment_date) and map 0-6 to Sunday-Saturday."
+    ),
+]
+
+
+SEED_EXAMPLES: list[dict[str, Any]] = [
+    {
+        "question": "How many patients do we have?",
+        "sql": "SELECT COUNT(*) AS total_patients FROM patients",
+        "category": "patients",
+    },
+    {
+        "question": "List all doctors and their specializations",
+        "sql": "SELECT name, specialization FROM doctors ORDER BY name",
+        "category": "doctors",
+    },
+    {
+        "question": "Show me appointments for last month",
+        "sql": (
+            "SELECT a.id, p.first_name || ' ' || p.last_name AS patient_name, d.name AS doctor_name, "
+            "a.appointment_date, a.status "
+            "FROM appointments a "
+            "JOIN patients p ON p.id = a.patient_id "
+            "JOIN doctors d ON d.id = a.doctor_id "
+            "WHERE date(a.appointment_date) >= date('now', 'start of month', '-1 month') "
+            "AND date(a.appointment_date) < date('now', 'start of month') "
+            "ORDER BY a.appointment_date DESC"
+        ),
+        "category": "appointments",
+    },
+    {
+        "question": "Which doctor has the most appointments?",
+        "sql": (
+            "SELECT d.name, COUNT(*) AS appointment_count "
+            "FROM appointments a "
+            "JOIN doctors d ON d.id = a.doctor_id "
+            "GROUP BY d.id, d.name "
+            "ORDER BY appointment_count DESC, d.name ASC "
+            "LIMIT 1"
+        ),
+        "category": "doctors",
+    },
+    {
+        "question": "What is the total revenue?",
+        "sql": "SELECT ROUND(SUM(total_amount), 2) AS total_revenue FROM invoices",
+        "category": "finance",
+    },
+    {
+        "question": "Show revenue by doctor",
+        "sql": (
+            "SELECT d.name, ROUND(SUM(t.cost), 2) AS total_revenue "
+            "FROM treatments t "
+            "JOIN appointments a ON a.id = t.appointment_id "
+            "JOIN doctors d ON d.id = a.doctor_id "
+            "GROUP BY d.id, d.name "
+            "ORDER BY total_revenue DESC, d.name ASC"
+        ),
+        "category": "finance",
+    },
+    {
+        "question": "How many cancelled appointments last quarter?",
+        "sql": (
+            "WITH current_period AS ( "
+            "SELECT CAST(strftime('%Y', 'now') AS INTEGER) AS current_year, "
+            "CAST(((CAST(strftime('%m', 'now') AS INTEGER) - 1) / 3) + 1 AS INTEGER) AS current_quarter "
+            "), last_period AS ( "
+            "SELECT CASE WHEN current_quarter = 1 THEN current_year - 1 ELSE current_year END AS target_year, "
+            "CASE WHEN current_quarter = 1 THEN 4 ELSE current_quarter - 1 END AS target_quarter "
+            "FROM current_period ) "
+            "SELECT COUNT(*) AS cancelled_appointments "
+            "FROM appointments "
+            "WHERE status = 'Cancelled' "
+            "AND CAST(strftime('%Y', appointment_date) AS INTEGER) = (SELECT target_year FROM last_period) "
+            "AND CAST(((CAST(strftime('%m', appointment_date) AS INTEGER) - 1) / 3) + 1 AS INTEGER) = "
+            "(SELECT target_quarter FROM last_period)"
+        ),
+        "category": "appointments",
+    },
+    {
+        "question": "Top 5 patients by spending",
+        "sql": (
+            "SELECT p.first_name, p.last_name, ROUND(SUM(i.total_amount), 2) AS total_spending "
+            "FROM invoices i "
+            "JOIN patients p ON p.id = i.patient_id "
+            "GROUP BY p.id, p.first_name, p.last_name "
+            "ORDER BY total_spending DESC, p.last_name ASC, p.first_name ASC "
+            "LIMIT 5"
+        ),
+        "category": "finance",
+    },
+    {
+        "question": "Average treatment cost by specialization",
+        "sql": (
+            "SELECT d.specialization, ROUND(AVG(t.cost), 2) AS average_treatment_cost "
+            "FROM treatments t "
+            "JOIN appointments a ON a.id = t.appointment_id "
+            "JOIN doctors d ON d.id = a.doctor_id "
+            "GROUP BY d.specialization "
+            "ORDER BY average_treatment_cost DESC, d.specialization ASC"
+        ),
+        "category": "finance",
+    },
+    {
+        "question": "Show monthly appointment count for the past 6 months",
+        "sql": (
+            "SELECT strftime('%Y-%m', appointment_date) AS month, COUNT(*) AS appointment_count "
+            "FROM appointments "
+            "WHERE date(appointment_date) >= date('now', 'start of month', '-5 months') "
+            "GROUP BY strftime('%Y-%m', appointment_date) "
+            "ORDER BY month ASC"
+        ),
+        "category": "appointments",
+    },
+    {
+        "question": "Which city has the most patients?",
+        "sql": (
+            "SELECT city, COUNT(*) AS patient_count "
+            "FROM patients "
+            "GROUP BY city "
+            "ORDER BY patient_count DESC, city ASC "
+            "LIMIT 1"
+        ),
+        "category": "patients",
+    },
+    {
+        "question": "List patients who visited more than 3 times",
+        "sql": (
+            "SELECT p.first_name, p.last_name, COUNT(*) AS visit_count "
+            "FROM appointments a "
+            "JOIN patients p ON p.id = a.patient_id "
+            "GROUP BY p.id, p.first_name, p.last_name "
+            "HAVING COUNT(*) > 3 "
+            "ORDER BY visit_count DESC, p.last_name ASC, p.first_name ASC"
+        ),
+        "category": "patients",
+    },
+    {
+        "question": "Show unpaid invoices",
+        "sql": (
+            "SELECT i.id, p.first_name, p.last_name, i.invoice_date, i.total_amount, i.paid_amount, i.status "
+            "FROM invoices i "
+            "JOIN patients p ON p.id = i.patient_id "
+            "WHERE i.status IN ('Pending', 'Overdue') "
+            "ORDER BY i.invoice_date DESC, i.id DESC"
+        ),
+        "category": "finance",
+    },
+    {
+        "question": "What percentage of appointments are no-shows?",
+        "sql": (
+            "SELECT ROUND(100.0 * SUM(CASE WHEN status = 'No-Show' THEN 1 ELSE 0 END) / COUNT(*), 2) "
+            "AS no_show_percentage FROM appointments"
+        ),
+        "category": "appointments",
+    },
+    {
+        "question": "Show the busiest day of the week for appointments",
+        "sql": (
+            "SELECT CASE strftime('%w', appointment_date) "
+            "WHEN '0' THEN 'Sunday' "
+            "WHEN '1' THEN 'Monday' "
+            "WHEN '2' THEN 'Tuesday' "
+            "WHEN '3' THEN 'Wednesday' "
+            "WHEN '4' THEN 'Thursday' "
+            "WHEN '5' THEN 'Friday' "
+            "WHEN '6' THEN 'Saturday' END AS day_of_week, "
+            "COUNT(*) AS appointment_count "
+            "FROM appointments "
+            "GROUP BY strftime('%w', appointment_date) "
+            "ORDER BY appointment_count DESC, day_of_week ASC "
+            "LIMIT 1"
+        ),
+        "category": "appointments",
+    },
+    {
+        "question": "Revenue trend by month",
+        "sql": (
+            "SELECT strftime('%Y-%m', invoice_date) AS month, ROUND(SUM(total_amount), 2) AS revenue "
+            "FROM invoices "
+            "GROUP BY strftime('%Y-%m', invoice_date) "
+            "ORDER BY month ASC"
+        ),
+        "category": "finance",
+    },
+    {
+        "question": "Average appointment duration by doctor",
+        "sql": (
+            "SELECT d.name, ROUND(AVG(t.duration_minutes), 2) AS average_duration_minutes "
+            "FROM treatments t "
+            "JOIN appointments a ON a.id = t.appointment_id "
+            "JOIN doctors d ON d.id = a.doctor_id "
+            "GROUP BY d.id, d.name "
+            "ORDER BY average_duration_minutes DESC, d.name ASC"
+        ),
+        "category": "appointments",
+    },
+    {
+        "question": "List patients with overdue invoices",
+        "sql": (
+            "SELECT DISTINCT p.first_name, p.last_name, p.city, i.invoice_date, i.total_amount, i.paid_amount "
+            "FROM invoices i "
+            "JOIN patients p ON p.id = i.patient_id "
+            "WHERE i.status = 'Overdue' "
+            "ORDER BY i.invoice_date DESC, p.last_name ASC, p.first_name ASC"
+        ),
+        "category": "finance",
+    },
+    {
+        "question": "Compare revenue between departments",
+        "sql": (
+            "SELECT d.department, ROUND(SUM(t.cost), 2) AS department_revenue "
+            "FROM treatments t "
+            "JOIN appointments a ON a.id = t.appointment_id "
+            "JOIN doctors d ON d.id = a.doctor_id "
+            "GROUP BY d.department "
+            "ORDER BY department_revenue DESC, d.department ASC"
+        ),
+        "category": "finance",
+    },
+    {
+        "question": "Show patient registration trend by month",
+        "sql": (
+            "SELECT strftime('%Y-%m', registered_date) AS month, COUNT(*) AS registrations "
+            "FROM patients "
+            "GROUP BY strftime('%Y-%m', registered_date) "
+            "ORDER BY month ASC"
+        ),
+        "category": "patients",
+    },
+]
+
+
+BENCHMARK_QUESTIONS = [example["question"] for example in SEED_EXAMPLES]
